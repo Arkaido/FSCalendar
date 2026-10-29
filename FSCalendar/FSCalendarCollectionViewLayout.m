@@ -312,45 +312,29 @@
                 break;
             }
             case UICollectionViewScrollDirectionVertical: {
+                // FIX: The original code hardcoded 6 rows per section when computing
+                // section/item index paths (row/6 and row%6), which caused months with
+                // only 4 or 5 rows to render blank cells or show days in the wrong month.
+                // We now iterate by section and ask each section for its actual row count.
+                NSInteger startSection = (NSInteger)(rect.origin.y / self.collectionView.fs_height);
+                NSInteger endSection   = (NSInteger)(CGRectGetMaxY(rect) / self.collectionView.fs_height);
+                startSection = MAX(0, MIN(startSection, self.numberOfSections - 1));
+                endSection   = MAX(0, MIN(endSection,   self.numberOfSections - 1));
                 
-                NSInteger startRow = ({
-                    NSInteger startSection = rect.origin.y/self.collectionView.fs_height;
-                    CGFloat heightDelta = FSCalendarMod(CGRectGetMinY(rect), self.collectionView.fs_height)-self.sectionInsets.top;
-                    heightDelta = MIN(MAX(0, heightDelta), self.collectionView.fs_height-self.sectionInsets.top);
-                    NSInteger countDelta = FSCalendarFloor(heightDelta/self.estimatedItemSize.height);
-                    NSInteger startRow = startSection*6 + countDelta;
-                    startRow;
-                });
-                
-                NSInteger endRow = ({
-                    NSInteger endRow;
-                    CGFloat section = CGRectGetMaxY(rect)/self.collectionView.fs_height;
-                    CGFloat remainder = FSCalendarMod(section, 1);
-                    // https://stackoverflow.com/a/10335601/2398107
-                    if (remainder <= MAX(100*FLT_EPSILON*ABS(remainder), FLT_MIN)) {
-                        endRow = FSCalendarFloor(section)*6 - 1;
-                    } else {
-                        CGFloat heightDelta = FSCalendarMod(CGRectGetMaxY(rect), self.collectionView.fs_height)-self.sectionInsets.top;
-                        heightDelta = MIN(MAX(0, heightDelta), self.collectionView.fs_height-self.sectionInsets.top);
-                        NSInteger countDelta = FSCalendarCeil(heightDelta/self.estimatedItemSize.height);
-                        endRow = FSCalendarFloor(section)*6 + countDelta-1;
-                    }
-                    endRow;
-                });
-                
-                for (NSInteger row = startRow; row <= endRow; row++) {
-                    for (NSInteger column = 0; column < 7; column++) {
-                        NSInteger section = row / 6;
-                        NSInteger item = column + (row % 6) * 7;
-                        NSIndexPath *indexPath = [NSIndexPath indexPathForItem:item inSection:section];
-                        UICollectionViewLayoutAttributes *itemAttributes = [self layoutAttributesForItemAtIndexPath:indexPath];
-                        [layoutAttributes addObject:itemAttributes];
-                        
-                        UICollectionViewLayoutAttributes *rowSeparatorAttributes = [self layoutAttributesForDecorationViewOfKind:kFSCalendarSeparatorInterRows atIndexPath:indexPath];
-                        if (rowSeparatorAttributes) {
-                            [layoutAttributes addObject:rowSeparatorAttributes];
+                for (NSInteger section = startSection; section <= endSection; section++) {
+                    NSInteger rowCount = [self.calendar.calculator numberOfRowsInSection:section];
+                    for (NSInteger row = 0; row < rowCount; row++) {
+                        for (NSInteger column = 0; column < 7; column++) {
+                            NSInteger item = column + row * 7;
+                            NSIndexPath *indexPath = [NSIndexPath indexPathForItem:item inSection:section];
+                            UICollectionViewLayoutAttributes *itemAttributes = [self layoutAttributesForItemAtIndexPath:indexPath];
+                            [layoutAttributes addObject:itemAttributes];
+                            
+                            UICollectionViewLayoutAttributes *rowSeparatorAttributes = [self layoutAttributesForDecorationViewOfKind:kFSCalendarSeparatorInterRows atIndexPath:indexPath];
+                            if (rowSeparatorAttributes) {
+                                [layoutAttributes addObject:rowSeparatorAttributes];
+                            }
                         }
-                        
                     }
                 }
                 
